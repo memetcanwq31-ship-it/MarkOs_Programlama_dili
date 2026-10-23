@@ -1,0 +1,217 @@
+; ============================================================
+; MarkOs Security Toolkit v2.0
+; Dil: MKU (MarkOs Küçük Üstün Dil)
+; Amaç: Özgür, bağımsız ve güvenli siber güvenlik aracı örneği
+; Not: Sadece yetkili ağlarda / kendi sistemlerde kullanılmalıdır.
+; ============================================================
+
+bağlan MarkOs
+bağlan Systeam
+bağlan Network
+bağlan Filesystem
+bağlan Security
+bağlan Crypto
+bağlan Scanner.all as scanner
+
+görev banner() {
+    göster "=================================================="
+    göster "   MarkOs Security Toolkit  |  MKU v2.0"
+    göster "   Özgür, Bağımsız ve Güvenli Siber Araç"
+    göster "=================================================="
+}
+
+görev menu() {
+    göster "1- Port Tarayıcı"
+    göster "2- Dosya Bütünlüğü Kontrolü"
+    göster "3- Baseline Oluştur"
+    göster "4- Şifre Güç Analizi"
+    göster "5- Host Canlılık Kontrolü"
+    göster "6- Çıkış"
+}
+
+görev scan_range(host, basla, bitis) {
+    açık = 0
+    p = basla
+
+    tekrar p <= bitis {
+        sonuc = scanner.scan(host, p)
+
+        eğer sonuc.status == "open" {
+            göster "  [AÇIK] " + str(p)
+            açık = açık + 1
+        }
+
+        p = p + 1
+    }
+
+    döndür açık
+}
+
+görev port_scanner() {
+    göster "Hedef host/IP:"
+    hedef = girdi("> ")
+
+    eğer Network.ping(hedef) == 0 {
+        göster "[!] Host erişilemez veya DNS başarısız."
+    } değilse {
+        göster "Host canlı. Tarama aralığını girin:"
+        basla_port = int(girdi("Başlangıç port > "))
+        bitis_port = int(girdi("Bitiş port   > "))
+
+        göster "Taraniyor: " + hedef + " [" + str(basla_port) + "-" + str(bitis_port) + "]"
+        bulunan = scan_range(hedef, basla_port, bitis_port)
+
+        göster "Sonuç: " + str(bulunan) + " açık port bulundu."
+    }
+}
+
+görev file_integrity() {
+    göster "Kontrol edilecek dosya yolu:"
+    yol = girdi("> ")
+
+    eğer Filesystem.exists(yol) == 0 {
+        göster "[!] Dosya bulunamadı."
+    } değilse {
+        h = Crypto.sha256_file(yol)
+        göster "Mevcut SHA256:"
+        göster "  " + h
+
+        eğer Filesystem.exists("baseline.mkuhash") == 1 {
+            eski = Filesystem.read_text("baseline.mkuhash")
+
+            eğer eski == h {
+                göster "[OK] Dosya baseline ile aynı - değişiklik yok."
+            } değilse {
+                göster "[ALERT!] Dosya baseline ile farklı - Olası değişiklik!"
+            }
+        } değilse {
+            göster "[~] Baseline bulunamadı. Önce seçenek 3'ü çalıştır."
+        }
+    }
+}
+
+görev baseline_creator() {
+    göster "Snapshot alınacak dosya yolu:"
+    yol = girdi("> ")
+
+    eğer Filesystem.exists(yol) == 0 {
+        göster "[!] Dosya bulunamadı."
+    } değilse {
+        hash_deger = Crypto.sha256_file(yol)
+        Filesystem.write_text("baseline.mkuhash", hash_deger)
+        göster "[OK] Baseline kaydedildi -> baseline.mkuhash"
+    }
+}
+
+görev pass_analyzer() {
+    göster "Şifreyi girin (yerel test amaçlı):"
+    sifre = girdi("> ")
+
+    puan = 0
+    buyuk = 0
+    kucuk = 0
+    rakam = 0
+    sembol = 0
+
+    i = 0
+    uzunluk = len(sifre)
+
+    tekrar i < uzunluk {
+        ch = char_at(sifre, i)
+        code = char_code(ch)
+
+        eğer code >= 65 ve code <= 90 {
+            buyuk = 1
+        }
+
+        eğer code >= 97 ve code <= 122 {
+            kucuk = 1
+        }
+
+        eğer code >= 48 ve code <= 57 {
+            rakam = 1
+        }
+
+        eğer (code >= 33 ve code <= 47) veya (code >= 58 ve code <= 64) veya (code >= 91 ve code <= 96) {
+            sembol = 1
+        }
+
+        i = i + 1
+    }
+
+    eğer uzunluk >= 12 {
+        puan = puan + 2
+    } değilse {
+        eğer uzunluk >= 8 {
+            puan = puan + 1
+        }
+    }
+
+    eğer buyuk == 1 { puan = puan + 1 }
+    eğer kucuk == 1 { puan = puan + 1 }
+    eğer rakam == 1 { puan = puan + 1 }
+    eğer sembol == 1 { puan = puan + 2 }
+
+    göster "Uzunluk      : " + str(uzunluk)
+    göster "Büyük harf   : " + str(buyuk)
+    göster "Küçük harf   : " + str(kucuk)
+    göster "Rakam        : " + str(rakam)
+    göster "Sembol       : " + str(sembol)
+    göster "SHA256       : " + Crypto.sha256_text(sifre)
+
+    eğer puan >= 6 {
+        göster "VERDICT      : STRONG password"
+    } değilse {
+        eğer puan >= 4 {
+            göster "VERDICT      : MEDIUM password"
+        } değilse {
+            göster "VERDICT      : WEAK password!"
+        }
+    }
+}
+
+görev liveness() {
+    göster "Kontrol edilecek host:"
+    hedef = girdi("> ")
+
+    eğer Network.ping(hedef) == 1 {
+        göster "[ALIVE] " + hedef + " yanıt veriyor."
+    } değilse {
+        göster "[DOWN]  " + hedef + " erişilemez."
+    }
+}
+
+; -------------------------- ANA DÖNGÜ --------------------------
+banner()
+
+çalışıyor = 1
+
+tekrar çalışan == 1 {
+    menu()
+    secim = girdi("markos-sec > ")
+
+    eğer secim == "1" {
+        port_scanner()
+    }
+
+    eğer secim == "2" {
+        file_integrity()
+    }
+
+    eğer secim == "3" {
+        baseline_creator()
+    }
+
+    eğer secim == "4" {
+        pass_analyzer()
+    }
+
+    eğer secim == "5" {
+        liveness()
+    }
+
+    eğer secim == "6" {
+        göster "MarkOs Security Toolkit kapatılıyor. Güvenli kal!"
+        çalışan = 0
+    }
+}
