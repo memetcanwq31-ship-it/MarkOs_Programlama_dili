@@ -1,0 +1,47 @@
+; =============================================================
+; MarkOs Siber Savunma ve Saldırı Analiz Platformu
+; Modül: MSAPC (MarkOs Statik Ağ Protocol Control)
+; Dosya: msapc_core.mku
+; =============================================================
+
+fonksiyon_ana msapc_baslat() {
+    print("=====================================================")
+    print("   MSAPC V1.0 - Yerli Statik Ag Protocol Control     ")
+    print("   Agi İzleyen, Paket Yakalayan En Gelişmiş Zırh     ")
+    print("=====================================================")
+
+    ; Donanım seviyesinde ağ kartını Promiscuous (Her Şeyi Yakala) moduna al
+    ag_karti = Network.donanim_arayuz_bagla(0)
+    
+    if ag_karti.aktif == 0 {
+        print("[MSAPC - KRİTİK HATA] Donanim katmanina erisilemedi!")
+        dönüş 0
+    }
+
+    print("[MSAPC] Ag trafigi ve paketler anlik dinleniyor... 🫰")
+    
+    ; Hacker ve Siber Güvenlikçiler için Canlı İzleme Konsolu Döngüsü
+    while 1 {
+        ; Ağ kartının buffer (tampon) belleğinden ham paketi en hızlı şekilde çek
+        ham_paket = Network.donanim_paket_oku(ag_karti)
+        
+        ; Protokolün türünü statik olarak kontrol et (MSAPC Protokol Kontrolü)
+        protokol_turu = Memory.bit_oku(ham_paket, 96, 16) ; Ethernet tipini oku
+
+        ; Eğer paket IPv4 ve TCP ise süzgeci derinleştir
+        if protokol_turu == 0x0800 {
+            kaynak_ip = Network.ip_ayikla(ham_paket, "kaynak")
+            hedef_ip  = Network.ip_ayikla(ham_paket, "hedef")
+            
+            ; --- Hacker / Pentester Analiz Katmanı ---
+            ; Paket boyutunu ve statik yapısını kontrol et (Buffer Overflow saldırı tespiti)
+            if ham_paket.boyut > 1500 {
+                print("[MSAPC ALARM] Buyuk boyutlu supheli paket yakalandi! Kaynak: " + kaynak_ip)
+                Security.paket_dusur(ham_paket.id) ; Saldırıyı donanımda boğ!
+            } else {
+                ; Güvenlikçiler için temiz paket loglama arabirimi
+                print("[MSAPC - TCP] Paket Yakalandi: " + kaynak_ip + " -> " + hedef_ip)
+            }
+        }
+    }
+}
