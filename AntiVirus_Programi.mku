@@ -1,0 +1,347 @@
+#!/usr/bin/env mku
+# ============================================================
+#  MarkOs Defender MKU Edition v1.0
+#  Antivirus for MarkOS Operating System
+#  Written in 100% MKU Language - MarkOS Ecosystem (c) 2026
+#  Developer: memetcanwq31-ship-it
+# ============================================================
+
+func banner()
+    print "=============================================="
+    print "   MarkOs Defender MKU Edition v1.0"
+    print "   MarkOS Ecosystem (c) 2026"
+    print "=============================================="
+end
+
+# ------------------------------------------------------------
+# IMZA VERITABANI
+# db formati: her satir = "hash ad" (duz metin, MKU ile okunur)
+# ------------------------------------------------------------
+
+func sigdb_load()
+    if file_exists("markos_signatures.db") == 0 then
+        file_write("markos_signatures.db", "")
+        print "[+] New signature DB created."
+    end
+    return file_read("markos_signatures.db")
+end
+
+func sigdb_lookup(dbtext, target_hash)
+    # dbtext satir satir gezilir; her satirda hash bolumu karsilastirilir
+    let i = 0
+    let line_start = 0
+    let n = len(dbtext)
+    while i <= n do
+        # satir sonunu bul
+        let found = 0
+        let j = line_start
+        while j < n do
+            if char_code(dbtext, j) == 10 then
+                let found = 1
+                let j_end = j
+                let j = n + 1
+            else
+                let j = j + 1
+            end
+        end
+        if found == 1 then
+            let line = substring(dbtext, line_start, j_end)
+            # satirin hash bolumu (ilk 64 karakter)
+            let db_hash = substring(line, 0, 64)
+            if db_hash == target_hash then
+                return substring(line, 65, len(line))
+            end
+            let line_start = j_end + 1
+        else
+            let i = n + 1
+        end
+        let i = i + 1
+    end
+    return ""
+end
+
+func sigdb_add(path, name)
+    let h = hash_file(path)
+    file_append("markos_signatures.db", h + " " + name + "\n")
+    print "[+] Signature added: " + name
+    print "    hash: " + h
+end
+
+# ------------------------------------------------------------
+# HEURISTIC ANALIZ
+# dosya iceriginde tehlike pattern'leri aranir, skor toplanir
+# ------------------------------------------------------------
+
+func check_pattern(content, token)
+    # substring arama: token, content icinde var mi?
+    let cn = len(content)
+    let tn = len(token)
+    if tn > cn then
+        return 0
+    end
+    let i = 0
+    while i <= cn - tn do
+        let match = 1
+        let k = 0
+        while k < tn do
+            if char_code(content, i + k) != char_code(token, k) then
+                let match = 0
+                let k = tn
+            else
+                let k = k + 1
+            end
+        end
+        if match == 1 then
+            return 1
+        end
+        let i = i + 1
+    end
+    return 0
+end
+
+func heuristic_score(content)
+    let score = 0
+    let findings = ""
+
+    if check_pattern(content, "vssadmin delete shadows") == 1 then
+        let score = score + 40
+        let findings = findings + "shadow-copy deletion (ransomware) +40; "
+    end
+    if check_pattern(content, "bash -i >& /dev/tcp") == 1 then
+        let score = score + 40
+        let findings = findings + "reverse shell (bash) +40; "
+    end
+    if check_pattern(content, "wevtutil cl") == 1 then
+        let score = score + 30
+        let findings = findings + "event log clearing +30; "
+    end
+    if check_pattern(content, "rm -rf /") == 1 then
+        let score = score + 35
+        let findings = findings + "destructive rm +35; "
+    end
+    if check_pattern(content, "powershell -enc") == 1 then
+        let score = score + 25
+        let findings = findings + "encoded powershell +25; "
+    end
+    if check_pattern(content, "CreateRemoteThread") == 1 then
+        let score = score + 25
+        let findings = findings + "process injection API +25; "
+    end
+    if check_pattern(content, "GetAsyncKeyState") == 1 then
+        let score = score + 20
+        let findings = findings + "keylogger API +20; "
+    end
+    if check_pattern(content, "base64 -d | sh") == 1 then
+        let score = score + 30
+        let findings = findings + "pipe-to-shell obfuscation +30; "
+    end
+    if check_pattern(content, "chmod 777 /") == 1 then
+        let score = score + 15
+        let findings = findings + "system-wide chmod +15; "
+    end
+
+    if score > 0 then
+        print "    heuristics: " + findings
+    end
+    return score
+end
+
+# ------------------------------------------------------------
+# KARANTINA
+# dosya izole klasore tasinir + .quarantined uzantisi
+# ------------------------------------------------------------
+
+func quarantine(path)
+    mkdir("quarantine")
+    let dest = "quarantine/" + path + ".quarantined"
+    file_move(path, dest)
+    file_append("quarantine.log", "[log] " + path + " -> " + dest + "\n")
+    print "[+] Quarantined: " + path
+end
+
+# ------------------------------------------------------------
+# TARAMA MOTORU
+# ------------------------------------------------------------
+
+func verdict_of(score, signame)
+    if signame != "" then
+        return "SIGNATURE MATCH: " + signame
+    end
+    if score >= 60 then
+        return "HEURISTIC: HIGH RISK"
+    end
+    if score >= 25 then
+        return "HEURISTIC: SUSPICIOUS"
+    end
+    if score >= 10 then
+        return "HEURISTIC: LOW"
+    end
+    return ""
+end
+
+func scan_file(path, dbtext)
+    if is_file(path) == 0 then
+        return 0
+    end
+    let h = hash_file(path)
+    let signame = sigdb_lookup(dbtext, h)
+    let score = 0
+    if signame == "" then
+        # imza yoksa heuristic incele (sadece metin dosyalari)
+        score = heuristic_score(file_read(path))
+    else
+        let score = 100
+        print "[!] THREAT [SIGNATURE]: " + path + " -> " + signame
+    end
+    let v = verdict_of(score, signame)
+    if v != "" and signame == "" then
+        print "[!] THREAT: " + path + " [" + v + "] score=" + str(score)
+    end
+    if v != "" then
+        file_append("defender_scan.log", "[threat] " + path + " " + v + " score=" + str(score) + " hash=" + h + "\n")
+        return 1
+    end
+    return 0
+end
+
+func scan_dir(path, dbtext)
+    let threats = 0
+    let entries = list_dir(path)
+    let i = 0
+    while i < list_len(entries) do
+        let name = list_get(entries, i)
+        # . ve .. atla; karantina klasorune dokunma
+        if name != "." and name != ".." and name != "quarantine" then
+            let full = path + "/" + name
+            if is_file(full) == 1 then
+                let threats = threats + scan_file(full, dbtext)
+            else
+                let threats = threats + scan_dir(full, dbtext)
+            end
+        end
+        let i = i + 1
+    end
+    return threats
+end
+
+func do_scan()
+    print "Directory to scan [.] :"
+    let dir = input "> "
+    if dir == "" then
+        let dir = "."
+    end
+    print "[*] Loading signature DB..."
+    let dbtext = sigdb_load()
+    print "[*] Scanning " + dir + " (recursive)..."
+    let threats = scan_dir(dir, dbtext)
+    print ""
+    if threats > 0 then
+        print "[ALERT] " + str(threats) + " threat(s) found! Check defender_scan.log"
+        print "[~] Run option 3 to quarantine them."
+    else
+        print "[OK] System clean. No threats found."
+    end
+end
+
+# ------------------------------------------------------------
+# SELF-INTEGRITY CHECK (Defender kendini dogrular)
+# ------------------------------------------------------------
+
+func self_check()
+    let h = hash_file("markos_defender.mku")
+    if file_exists("defender_self.baseline") == 0 then
+        file_write("defender_self.baseline", h)
+        print "[+] Baseline created: " + h
+    else
+        let base = file_read("defender_self.baseline")
+        if base == h then
+            print "[OK] Defender integrity verified - no tampering."
+        else
+            print "[ALERT!] Defender binary has been MODIFIED!"
+        end
+    end
+end
+
+# ------------------------------------------------------------
+# SISTEM DURUM PANELI
+# ------------------------------------------------------------
+
+func status()
+    let dbtext = sigdb_load()
+    let sigcount = 0
+    let i = 0
+    while i < len(dbtext) do
+        if char_code(dbtext, i) == 10 then
+            let sigcount = sigcount + 1
+        end
+        let i = i + 1
+    end
+    print "--------- MarkOs Defender Status ---------"
+    print "  Signature DB   : " + str(sigcount) + " entries"
+    if file_exists("quarantine") == 1 then
+        print "  Quarantine     : " + str(list_len(list_dir("quarantine"))) + " file(s)"
+    else
+        print "  Quarantine     : empty"
+    end
+    if file_exists("defender_scan.log") == 1 then
+        print "  Scan log       : present (defender_scan.log)"
+    else
+        print "  Scan log       : none"
+    end
+    print "-------------------------------------------"
+end
+
+# ------------------------------------------------------------
+# MENU
+# ------------------------------------------------------------
+
+func menu()
+    print "1- Quick Scan"
+    print "2- Add Signature (file -> DB)"
+    print "3- Quarantine File"
+    print "4- System Status"
+    print "5- Self Integrity Check"
+    print "6- Exit"
+end
+
+# ------------------------- MAIN ----------------------------
+banner()
+self_check()
+let running = 1
+while running == 1 do
+    menu()
+    let choice = input "defender > "
+    if choice == "1" then
+        do_scan()
+    end
+    if choice == "2" then
+        print "File path:"
+        let fp = input "> "
+        if file_exists(fp) == 1 then
+            print "Threat name:"
+            let tn = input "> "
+            sigdb_add(fp, tn)
+        else
+            print "[!] File not found."
+        end
+    end
+    if choice == "3" then
+        print "File to quarantine:"
+        let qp = input "> "
+        if file_exists(qp) == 1 then
+            quarantine(qp)
+        else
+            print "[!] File not found."
+        end
+    end
+    if choice == "4" then
+        status()
+    end
+    if choice == "5" then
+        self_check()
+    end
+    if choice == "6" then
+        print "MarkOs Defender shutting down. Stay secure!"
+        let running = 0
+    end
+end
