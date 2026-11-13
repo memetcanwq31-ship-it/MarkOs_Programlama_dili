@@ -1,0 +1,6 @@
+# Beginner example for the currently implemented MCII subset
+# Build: make example
+
+print "Selam, MKU!"
+let sayi = (6 + 7) * 3
+print sayi
