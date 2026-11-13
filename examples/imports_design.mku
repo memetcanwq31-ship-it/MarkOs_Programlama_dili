@@ -1,0 +1,14 @@
+# Proposed MKU import example — design-only until MCII implements imports
+# This file documents intended syntax and is not supported by the current compiler.
+
+import core.text as text
+import core.math as math
+import io.console as console
+
+start {
+    olsun message = text.upper("selam, MKU")
+    olsun answer = math.add(20, 22)
+
+    console.write(message)
+    console.write("Answer: " + str(answer))
+}
