@@ -1,10 +1,16 @@
-# MKU and MCII: first implementation milestone
+# MKU and MCII
 
-This repository is the home of the MKU language and MCII compiler. The current compiler source is `MCII.asm`: a Linux x86-64 NASM program that reads a small MKU source subset and emits NASM assembly. It is not yet a complete self-hosting compiler or a general-purpose OS/AI language.
+MKU is an experimental programming-language project. MCII is its compiler project. The project is being built incrementally; it does not yet provide a complete general-purpose language, self-hosting compiler, operating-system development kit, or AI framework.
 
-## Build and smoke-test
+## Current compiler milestone
 
-Requirements for this milestone: Linux x86-64, NASM, and GNU `ld`.
+`MCII.asm` is the current Linux x86-64 NASM bootstrap compiler. It reads a deliberately small MKU subset and emits NASM source. `MCII.ci` is the canonical project/design manifest for the intended MCII compiler; it is **not executable compiler source yet**. The `.ci` extension does not itself make the compiler independent of assembly.
+
+Current subset: integer `let` declarations, `print` of strings or integer expressions, variables, parentheses, and integer arithmetic (`+`, `-`, `*`, `/`, `%`). The actual supported syntax is described in `docs/MKU_SPEC_v0.1.md`.
+
+## Build and test
+
+Requirements: Linux x86-64, NASM, GNU `ld`, and Make.
 
 ```sh
 make
@@ -12,28 +18,26 @@ make test
 make example
 ```
 
-The compiler command is:
+Manual use:
 
 ```sh
-build/mcii input.mku output.asm
-nasm -f elf64 output.asm -o output.o
-ld output.o -o output
-./output
+build/mcii examples/hello.mku build/hello.asm
+nasm -f elf64 build/hello.asm -o build/hello.o
+ld build/hello.o -o build/hello
+./build/hello
 ```
 
-## Current supported subset
+## Bootstrap and independence
 
-The existing compiler supports simple `print` statements (string or integer expression), `let name = arithmetic_expression`, variables, parentheses, and integer arithmetic (`+`, `-`, `*`, `/`, `%`). Comments begin with `#`. See `examples/hello.mku` and `docs/MKU_SPEC_v0.1.md`.
+A compiler must run on some existing machine before it can compile itself. This project uses the existing NASM toolchain for its first bootstrap stage. The long-term goal is to move compiler implementation into MKU and make it self-hosting, while retaining a documented bootstrap path. Self-hosting means the MKU compiler can compile its own source; it does not mean the toolchain has no host, linker, or target-platform requirements.
 
-The compiler emits Linux x86-64 assembly. NASM and the linker are build-time tools; the present implementation is therefore not yet a standalone toolchain. `if`, loops, functions, strings as values, modules, type checking, and other features are future work and should only be called supported after implementation and tests exist.
+The phrase “faster than Rust” is not a measured result. Any performance comparison needs published compiler versions, target hardware, workloads, and repeatable benchmarks. No license is implied until a license file is added.
 
-## Development direction
+## Planned milestones
 
-1. Establish reproducible build and regression tests (this milestone).
-2. Replace ad-hoc source scanning with a lexer and parser while keeping the compiler in assembly.
-3. Add diagnostics and a documented grammar; test every feature.
-4. Add control flow, functions, and a defined runtime/ABI.
-5. Expand standard libraries through explicit, permission-conscious APIs.
-6. Explore self-hosting only after the compiler can reliably build useful programs.
-
-Performance claims need benchmarks against named versions, workloads, and targets. “Faster than Rust” is an aspiration, not a result established by this prototype. The project is free/open-source only to the extent its maintainers choose and publish a license; no license is implied by this README.
+1. Keep the current subset buildable and add regression tests.
+2. Replace direct scanning with a lexer, parser, and useful source diagnostics.
+3. Add tested control flow and functions to the language and native code generator.
+4. Define types, calling convention, memory model, and a small standard library.
+5. Implement the compiler in MKU and verify bootstrap by compiling it twice and comparing outputs.
+6. Add additional targets and libraries only with explicit safety and capability rules.

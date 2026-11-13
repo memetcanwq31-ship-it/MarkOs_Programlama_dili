@@ -1,0 +1,56 @@
+# MCII compiler project manifest (design draft; not an executable compiler yet)
+# Format version: 1
+# The .ci extension is reserved for the MCII compiler project description.
+# The current runnable bootstrap implementation remains MCII.asm.
+
+compiler MCII
+version 0.1.0
+source_language MKU
+host linux-x86_64
+initial_target linux-x86_64-elf
+source_extension .mku
+assembly_output nasm-elf64
+executable_format ELF64
+
+pipeline {
+    stage source_reader
+    stage lexer
+    stage parser
+    stage semantic_checks
+    stage x86_64_codegen
+    stage assembly_writer
+}
+
+implemented_subset {
+    statement print_string
+    statement let_integer
+    expression integer_literal
+    expression variable
+    expression parentheses
+    operator add subtract multiply divide remainder
+}
+
+planned_features {
+    feature structured_diagnostics
+    feature if_else
+    feature while_loop
+    feature functions_and_return
+    feature typed_values
+    feature modules_with_explicit_capabilities
+    feature self_hosted_compiler
+    feature additional_targets
+}
+
+bootstrap {
+    current_source MCII.asm
+    current_build nasm-elf64
+    next_goal rewrite_frontend_in_MKU
+    rule do_not_claim_self_hosting_until_MKUI_compiles_MKUI
+}
+
+principles {
+    free_software_requires_an_explicit_license
+    no_unverified_speed_claims
+    safe_defaults_for_filesystem_and_network_apis
+    compiler_must_report_unsupported_syntax
+}
