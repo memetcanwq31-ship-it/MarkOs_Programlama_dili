@@ -1,0 +1,6 @@
+; MKU v0.1 example supported by the current MCII compiler subset.
+; Compile: make example
+
+print "Hello from MKU"
+let answer = 6 * 7
+print answer
